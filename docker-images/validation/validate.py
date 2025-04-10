@@ -54,14 +54,19 @@ order_items_schema = StructType([
     StructField("sale_price", FloatType(), False)
 ])
 
-# Initialize Spark session
-spark = SparkSession.builder.appName("e_commerce_validation").getOrCreate()
+# Initialize Spark session with S3A configurations and JARs
+spark = SparkSession.builder \
+    .appName("e_commerce_validation") \
+    .config("spark.jars", "/app/jars/hadoop-aws-3.3.4.jar,/app/jars/aws-java-sdk-bundle-1.12.767.jar") \
+    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain") \
+    .getOrCreate()
 
 def load_data():
     # Construct S3 paths
-    products_path = f"s3://{S3_BUCKET}/{S3_FILE_PRODUCTS}"
-    orders_folder_path = f"s3://{S3_BUCKET}/{S3_FILE_ORDERS}/"  # Folder path
-    order_items_folder_path = f"s3://{S3_BUCKET}/{S3_FILE_ORDER_ITEMS}/"  # Folder path
+    products_path = f"s3a://{S3_BUCKET}/{S3_FILE_PRODUCTS}"
+    orders_folder_path = f"s3a://{S3_BUCKET}/{S3_FILE_ORDERS}/"  # Folder path
+    order_items_folder_path = f"s3a://{S3_BUCKET}/{S3_FILE_ORDER_ITEMS}/"  # Folder path
 
     logger.info(f"Loading data from S3:")
     logger.info(f"Products: {products_path}")
