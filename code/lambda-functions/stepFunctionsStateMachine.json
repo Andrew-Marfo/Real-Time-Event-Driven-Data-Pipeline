@@ -1,0 +1,205 @@
+{
+    "Comment": "E-commerce Pipeline: Validation -> Transformation",
+    "StartAt": "RunValidationTask",
+    "States": {
+      "RunValidationTask": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::ecs:runTask.sync",
+        "Parameters": {
+          "LaunchType": "FARGATE",
+          "Cluster": "arn:aws:ecs:eu-west-1:195275667627:cluster/ecommerce-pipeline-cluster",
+          "TaskDefinition": "arn:aws:ecs:eu-west-1:195275667627:task-definition/validation-task:3",
+          "NetworkConfiguration": {
+            "AwsvpcConfiguration": {
+              "Subnets": [
+                "subnet-0aacb1226a4c6d4e9",
+                "subnet-01d4050d893872516",
+                "subnet-072ddae4536cc9010"
+              ],
+              "SecurityGroups": [
+                "sg-0665e6c8b3487c338"
+              ],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "Next": "RunTransformationTask",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "Next": "MoveToInvalidData"
+          }
+        ],
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "ECS.ServiceError",
+              "States.TaskFailed"
+            ],
+            "MaxAttempts": 3,
+            "IntervalSeconds": 1,
+            "BackoffRate": 2.0,
+            "JitterStrategy": "FULL"
+          }
+        ]
+      },
+      "MoveToInvalidData": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "Parameters": {
+          "FunctionName": "MoveS3Files",
+          "Payload": {
+            "bucket": "ecommerce-transactional-bucket",
+            "source_prefix": "landing-data/",
+            "destination_prefix": "archive/invalid-data/"
+          }
+        },
+        "Next": "CheckMoveToInvalidDataResult",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "ResultPath": "$.MoveToInvalidDataError",
+            "Next": "NotifyFailure"
+          }
+        ],
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "MaxAttempts": 3,
+            "IntervalSeconds": 1,
+            "BackoffRate": 2.0,
+            "JitterStrategy": "FULL"
+          }
+        ]
+      },
+      "CheckMoveToInvalidDataResult": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.Payload.statusCode",
+            "NumericEquals": 200,
+            "Next": "NotifyInvalidDataMoved"
+          }
+        ],
+        "Default": "NotifyFailure"
+      },
+      "NotifyInvalidDataMoved": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "arn:aws:sns:eu-west-1:195275667627:EcommercePipelineNotifications",
+          "Message.$": "States.Format('E-commerce Pipeline failed at validation. Data moved to archive/invalid-data/: {}', $.Payload.body)"
+        },
+        "Next": "Fail"
+      },
+      "RunTransformationTask": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::ecs:runTask.sync",
+        "Parameters": {
+          "LaunchType": "FARGATE",
+          "Cluster": "arn:aws:ecs:eu-west-1:195275667627:cluster/ecommerce-pipeline-cluster",
+          "TaskDefinition": "arn:aws:ecs:eu-west-1:195275667627:task-definition/transformation-task:3",
+          "NetworkConfiguration": {
+            "AwsvpcConfiguration": {
+              "Subnets": [
+                "subnet-0aacb1226a4c6d4e9",
+                "subnet-01d4050d893872516",
+                "subnet-072ddae4536cc9010"
+              ],
+              "SecurityGroups": [
+                "sg-0665e6c8b3487c338"
+              ],
+              "AssignPublicIp": "ENABLED"
+            }
+          }
+        },
+        "Next": "MoveToProcessedData",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "Next": "NotifyFailure"
+          }
+        ],
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "ECS.ServiceError",
+              "States.TaskFailed"
+            ],
+            "MaxAttempts": 3,
+            "IntervalSeconds": 1,
+            "BackoffRate": 2.0,
+            "JitterStrategy": "FULL"
+          }
+        ]
+      },
+      "MoveToProcessedData": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "Parameters": {
+          "FunctionName": "MoveS3Files",
+          "Payload": {
+            "bucket": "ecommerce-transactional-bucket",
+            "source_prefix": "landing-data/",
+            "destination_prefix": "archive/processed-data/"
+          }
+        },
+        "Next": "NotifySuccess",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "Next": "NotifyFailure"
+          }
+        ],
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.SdkClientException",
+              "Lambda.TooManyRequestsException"
+            ],
+            "MaxAttempts": 3,
+            "IntervalSeconds": 1,
+            "BackoffRate": 2.0,
+            "JitterStrategy": "FULL"
+          }
+        ]
+      },
+      "NotifySuccess": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "arn:aws:sns:eu-west-1:195275667627:EcommercePipelineNotifications",
+          "Message": "E-commerce Category-Level KPIs and Order-Level KPIs computed and saved to DynanoDB successfully"
+        },
+        "Next": "Success"
+      },
+      "NotifyFailure": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "arn:aws:sns:eu-west-1:195275667627:EcommercePipelineNotifications",
+          "Message.$": "States.Format('E-commerce Pipeline failed at state {} with error: {}. Data moved to archive (Invalid)', $.State, $.Cause)"
+        },
+        "Next": "Fail"
+      },
+      "Success": {
+        "Type": "Succeed"
+      },
+      "Fail": {
+        "Type": "Fail"
+      }
+    }
+  }
