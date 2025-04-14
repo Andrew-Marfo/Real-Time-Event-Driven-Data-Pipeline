@@ -141,7 +141,7 @@ This section provides simple instructions to set up the E-commerce Pipeline proj
   - `scripts/lambda_functions/CheckS3AndTriggerEcommercePipeline.py`: Code for the S3 event Lambda function.
   - `docker-images/validation/`: Code and Dockerfile for the validation task.
   - `docker-images/transformation/`: Code and Dockerfile for the transformation task.
-  - `test-data/`: Sample data for testing (e.g., `products.csv`, `orders/order1.csv`, `order_items/order_items_part1.csv`).
+  - `Data/`: Sample data for testing (e.g., `products.csv`, `orders/order1.csv`, `order_items/order_items_part1.csv`).
 
 ### Step 1: Clone the Repository
 1. Clone the repository to your local machine using Git.
