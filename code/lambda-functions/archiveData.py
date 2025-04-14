@@ -66,7 +66,7 @@ def lambda_handler(event, context):
             )
 
             # Delete the source object
-            # s3_client.delete_object(Bucket=bucket, Key=source_key)
+            s3_client.delete_object(Bucket=bucket, Key=source_key)
 
         logger.info(f"Successfully moved {len(all_objects)} files from {source_prefix} to {destination_prefix}")
         return {
