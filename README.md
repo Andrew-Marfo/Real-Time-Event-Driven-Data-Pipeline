@@ -22,7 +22,7 @@ The **E-commerce Pipeline** is an automated data processing workflow designed to
 ## Architecture
 
 ### Architecture Diagram
-![E-commerce Pipeline Architecture](./docs/images/architecture_diagram.jpg)
+![E-commerce Pipeline Architecture](./assets/images/architecture_diagram.jpg)
 
 ### Architecture Diagram Description
 The E-commerce Pipeline architecture consists of the following components, interconnected to form a seamless workflow:
